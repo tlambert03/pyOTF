@@ -12,7 +12,91 @@ try:
     pyfftw.interfaces.cache.enable()
 except ImportError:
     from numpy.fft import fftshift, ifftshift, fftn, ifftn
-from dphutils import fft_pad, slice_maker
+from scipy.signal import signaltools as sig
+
+#from dphutils import slice_maker
+
+
+def _calc_pad(oldnum, newnum):
+    """ Calculate the proper padding for fft_pad
+
+    We have three cases:
+    old number even new number even
+    >>> _calc_pad(10, 16)
+    (3, 3)
+
+    old number odd new number even
+    >>> _calc_pad(11, 16)
+    (2, 3)
+
+    old number odd new number odd
+    >>> _calc_pad(11, 17)
+    (3, 3)
+
+    old number even new number odd
+    >>> _calc_pad(10, 17)
+    (4, 3)
+
+    same numbers
+    >>> _calc_pad(17, 17)
+    (0, 0)
+
+    from larger to smaller.
+    >>> _calc_pad(17, 10)
+    (-4, -3)
+    """
+    # how much do we need to add?
+    width = newnum - oldnum
+    # calculate one side, smaller
+    pad_s = width // 2
+    # calculate the other, bigger
+    pad_b = width - pad_s
+    # if oldnum is odd and newnum is even
+    # we want to pull things backward
+    if oldnum % 2:
+        pad1, pad2 = pad_s, pad_b
+    else:
+        pad1, pad2 = pad_b, pad_s
+    return pad1, pad2
+
+
+def _calc_crop(s1, s2):
+    """Calc the cropping from the padding"""
+    a1 = abs(s1) if s1 < 0 else None
+    a2 = s2 if s2 < 0 else None
+    return slice(a1, a2, None)
+
+
+def padding_slices(oldshape, newshape):
+    """This function takes the old shape and the new shape and calculates
+    the required padding or cropping.newshape
+
+    Can be used to generate the slices needed to undo fft_pad above"""
+    # generate pad widths from new shape
+    padding = tuple(_calc_pad(o, n) if n is not None else _calc_pad(o, o)
+                    for o, n in zip(oldshape, newshape))
+    # Make a crop list, if any of the padding is negative
+    slices = tuple(_calc_crop(s1, s2) for s1, s2 in padding)
+    # leave 0 pad width where it was cropped
+    padding = [(max(s1, 0), max(s2, 0)) for s1, s2 in padding]
+    return padding, slices
+
+
+def fft_pad(array, newshape=None, mode='median', **kwargs):
+    """Pad an array to prep it for fft"""
+    # pull the old shape
+    oldshape = array.shape
+    if newshape is None:
+        # update each dimension to a 5-smooth hamming number
+        newshape = tuple(sig.fftpack.helper.next_fast_len(n) for n in oldshape)
+    else:
+        if isinstance(newshape, int):
+            newshape = tuple(newshape for n in oldshape)
+        else:
+            newshape = tuple(newshape)
+    # generate padding and slices
+    padding, slices = padding_slices(oldshape, newshape)
+    return np.pad(array[slices], padding, mode=mode, **kwargs)
 
 
 def easy_fft(data, axes=None):
@@ -164,8 +248,9 @@ def prep_data_for_PR(data, xysize=None, multiplier=1.5):
         pad_data = fft_pad(data_without_bg, (nz, xysize, xysize),
                            mode="constant")
     else:
+        raise NotImplementedError('removed dphutils, cannot crop')
         # if need to crop, crop and center and return
-        my_slice = slice_maker(((ny + 1) // 2, (nx + 1) // 2), xysize)
-        return center_data(data_without_bg)[[Ellipsis] + my_slice]
+        #my_slice = slice_maker(((ny + 1) // 2, (nx + 1) // 2), xysize)
+        #return center_data(data_without_bg)[[Ellipsis] + my_slice]
     # return centered data
     return center_data(pad_data)
