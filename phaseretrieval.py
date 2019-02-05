@@ -20,9 +20,9 @@ except ImportError:
     from numpy.fft import fftshift, ifftshift, fftn
 
 from numpy.linalg import lstsq
-from .utils import *
+from .utils import psqrt, fft_pad
 from .otf import HanserPSF
-from .zernike import *
+from .zernike import zernike, noll2name
 from skimage.restoration import unwrap_phase
 from matplotlib import pyplot as plt
 
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 def retrieve_phase(data, params, max_iters=200, pupil_tol=1e-8,
-                   mse_tol=1e-8, phase_only=False):
+                   mse_tol=1e-8, phase_only=False, mclass=HanserPSF):
     """Retrieve the phase across the objective's back pupil from an
     experimentally measured PSF.
 
@@ -77,7 +77,7 @@ def retrieve_phase(data, params, max_iters=200, pupil_tol=1e-8,
     # The field magnitude is the square root of the intensity
     mag = psqrt(data)
     # generate a model from parameters
-    model = HanserPSF(**params)
+    model = mclass(**params)
     # generate coordinates
     model._gen_kr()
     # start a list for iteration
@@ -89,6 +89,7 @@ def retrieve_phase(data, params, max_iters=200, pupil_tol=1e-8,
     # save it as a mask
     mask = new_pupil.real
     # iterate
+    old_mse, old_pupil = None, None
     for i in range(max_iters):
         # generate new mse and add it to the list
         model._gen_psf(new_pupil)
@@ -198,6 +199,8 @@ class PhaseRetrievalResult(object):
         if zrange is not None:
             model.zrange = zrange
         # generate the PSF from the reconstructed phase
+        if not hasattr(self, 'zd_result'):
+            self.fit_to_zernikes(120)
         model._gen_psf(ifftshift(self.zd_result.complex_pupil(sphase=sphase)))
         # reshpae PSF if needed in x/y dimensions
         psf = model.PSFi
@@ -250,6 +253,14 @@ class PhaseRetrievalResult(object):
     def complex_pupil(self):
         """Return the complex pupil function"""
         return self.mag * np.exp(1j * self.phase)
+
+
+def fake_zernike_decomp(mcoefs, pcoefs, model):
+    assert mcoefs.size == pcoefs.size
+    num_zerns = len(mcoefs)
+    r, theta = fftshift(model._kr), fftshift(model._phi)
+    zerns = zernike(r, theta, np.arange(1, num_zerns + 1))
+    return ZernikeDecomposition(mcoefs, pcoefs, zerns)
 
 
 class ZernikeDecomposition(object):
@@ -374,6 +385,7 @@ if __name__ == "__main__":
     import os
     import time
     from skimage.external import tifffile as tif
+    from .utils import prep_data_for_PR
     # read in data from fixtures
     data = tif.imread(os.path.split(__file__)[0] + "/fixtures/psf_wl520nm_z300nm_x130nm_na0.85_n1.0.tif")
     # prep data

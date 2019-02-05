@@ -22,7 +22,6 @@ try:
     pyfftw.interfaces.cache.enable()
 except ImportError:
     from numpy.fft import fftshift, fftfreq
-from pyOTF.utils import *
 
 
 class BasePSF(object):
@@ -217,7 +216,6 @@ class HanserPSF(BasePSF):
     Phase Retrieval for High-Numerical-Aperture Optical Systems.
     Optics Letters 2003, 28 (10), 801.](dx.doi.org/10.1364/OL.28.000801)
     """
-
     def __init__(self, *args, zrange=None, **kwargs):
         """zrange : array-like
             An alternate way to specify the z range for the calculation
