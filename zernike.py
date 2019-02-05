@@ -61,8 +61,7 @@ name2noll = {v: k for k, v in noll2name.items()}
 
 def gen_psf(params, mcoefs=[1, 0], pcoefs=[0, 0], mclass=HanserPSF):
     from .phaseretrieval import ZernikeDecomposition
-    model = mclass(**params)
-    model._gen_kr()
+
     mcoefs = np.array(mcoefs)
     pcoefs = np.array(pcoefs)
     if len(mcoefs) > len(pcoefs):
@@ -73,13 +72,16 @@ def gen_psf(params, mcoefs=[1, 0], pcoefs=[0, 0], mclass=HanserPSF):
         _mcoefs = np.zeros_like(pcoefs)
         _mcoefs[:len(mcoefs)] = mcoefs
         mcoefs = _mcoefs
+
+    model = mclass(**params)
+    model._gen_kr()
     r, theta = fftshift(model._kr), fftshift(model._phi)
     r = r / (model.na / model.wl)
     zerns = zernike(r, theta, np.arange(1, len(mcoefs) + 1))
     zd = ZernikeDecomposition(mcoefs, pcoefs, zerns)
     pupil = ifftshift(zd.complex_pupil(sphase=slice(4, None, None)))
     model._gen_psf(pupil)
-    return model.PSFi
+    return model, pupil
 
 
 def noll2degrees(noll):
