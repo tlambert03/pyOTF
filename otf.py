@@ -16,12 +16,13 @@ Copyright (c) 2016, David Hoffman
 import numpy as np
 from numpy.linalg import norm
 try:
-    from pyfftw.interfaces.numpy_fft import fftshift, fftfreq
+    from pyfftw.interfaces.numpy_fft import fftshift, fftfreq, ifftn
     import pyfftw
     # Turn on the cache for optimum performance
     pyfftw.interfaces.cache.enable()
 except ImportError:
-    from numpy.fft import fftshift, fftfreq
+    from numpy.fft import fftshift, fftfreq, ifftn
+from .utils import NumericProperty, cart2pol, psqrt
 
 
 class BasePSF(object):
