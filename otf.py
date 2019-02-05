@@ -293,6 +293,8 @@ class HanserPSF(BasePSF):
 
     def _calc_defocus(self):
         """Calculate the defocus to apply to the base pupil"""
+        if not hasattr(self, '_kz'):
+            self._gen_kr()
         kz = self._kz
         return np.exp(2 * np.pi * 1j * kz *
                       self.zrange[:, np.newaxis, np.newaxis])
